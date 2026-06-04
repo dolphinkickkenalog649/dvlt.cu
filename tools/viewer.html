@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dvlt.cu viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0e11; color: #cfe3d0;
+               font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #hud { position: fixed; top: 12px; left: 12px; padding: 10px 12px;
+         background: rgba(10,14,17,.72); border: 1px solid #1c2a20; border-radius: 0;
+         user-select: none; }
+  #hud b { color: #6ee787; font-weight: 600; }
+  #hud .repo { display: block; margin-top: 2px; color: #6ee787; text-decoration: none; }
+  #hud .repo:hover { text-decoration: underline; }
+  #hud hr { border: none; border-top: 1px solid #1c2a20; margin: 9px 0 4px; }
+  #hud label { display: block; margin-top: 6px; color: #9fb6a3; }
+  #hud input[type=range] { width: 140px; vertical-align: middle; accent-color: #6ee787; }
+  #hud .st { margin-top: 8px; color: #7e9384; }
+  #drop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+          flex-direction: column; gap: 10px; pointer-events: none; }
+  #drop .box { padding: 28px 36px; border: 1px dashed #2c4231; border-radius: 0;
+               background: rgba(10,14,17,.6); text-align: center; }
+  #drop .box b { color: #6ee787; }
+  #drop .logo { display: inline-block; text-align: left; color: #6ee787;
+                margin: 0 0 20px; line-height: 1; font-size: 13px; }
+  #drop .box small { color: #7e9384; }
+  #pick { pointer-events: auto; color: #6ee787; text-decoration: underline; cursor: pointer; }
+  body.loaded #drop { display: none; }
+  body.drag #drop .box { border-color: #6ee787; background: rgba(20,40,26,.7); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div><b>dvlt.cu</b> viewer</div>
+  <a class="repo" href="https://github.com/yassa9" target="_blank" rel="noopener">github.com/yassa9</a>
+  <hr>
+  <label>rotate speed <input id="rspeed" type="range" min="0.1" max="3" step="0.1" value="1.0"></label>
+  <label>point size <input id="psize" type="range" min="0.2" max="6" step="0.1" value="1.5"></label>
+  <label>frustum size <input id="fsize" type="range" min="0.01" max="0.25" step="0.005" value="0.01"></label>
+  <label><input id="fshow" type="checkbox" checked> show cameras</label>
+  <div class="st" id="st">drop the output folder (or scene.ply)</div>
+  <div class="st" id="fps">- fps</div>
+</div>
+
+<div id="drop"><div class="box">
+  <pre class="logo">
+███████  ██  ██ ██ ████████ ██████ ██  ██
+██    ██ ██  ██ ██    ██    ██     ██  ██
+██    ██ ██  ██ ██    ██    ██     ██  ██
+███████   ████  █████ ██ ██ ██████  █████
+  </pre>
+  <div><b>drag</b> the output folder <small>(or</small> scene.ply<small>)</small> here</div>
+  <small>or <span id="pick">choose files</span> &middot; everything runs locally, no server</small>
+  <input id="file" type="file" multiple accept=".ply,.json" hidden>
+</div></div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/TrackballControls.js"></script>
+<script>
+"use strict";
+
+// --- scene ---------------------------------------------------------------
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, 1, 0.001, 1e6);
+camera.position.set(0, 0, 3);
+// trackball = free arcball tumble (no fixed up), like meshlab/cloudcompare
+const controls = new THREE.TrackballControls(camera, canvas);
+controls.rotateSpeed = 1.0;
+controls.zoomSpeed = 0.35;
+controls.panSpeed = 0.15;
+controls.dynamicDampingFactor = 0.12;
+// default roles: left=rotate, middle=zoom, right=pan. we override middle below.
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+
+// trackball can only map one button to pan, so mirror middle-drag onto a synthetic
+// right-button event -> both middle and right pan, meshlab-style. also kill autoscroll.
+canvas.addEventListener("pointerdown", e => {
+  if (e.button !== 1) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  canvas.dispatchEvent(new PointerEvent("pointerdown", {
+    bubbles: true, pointerId: e.pointerId, pointerType: e.pointerType,
+    button: 2, buttons: 2, clientX: e.clientX, clientY: e.clientY, view: window }));
+}, true);
+canvas.addEventListener("mousedown", e => { if (e.button === 1) e.preventDefault(); });
+
+// dvlt/cv convention is y-down, z-forward; three.js is y-up. flip the whole
+// world 180° about x so reconstructions load right-side-up (cloud + cameras together).
+const world = new THREE.Group();
+world.rotation.x = Math.PI;
+scene.add(world);
+
+let cloud = null;             // THREE.Points
+let frustums = new THREE.Group();
+world.add(frustums);
+
+let sceneRadius = 1, sceneCenter = new THREE.Vector3();
+let poses = null;             // parsed frames array
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  controls.handleResize();   // trackball caches screen rect
+}
+addEventListener("resize", resize);
+resize();
+
+// rolling fps over a ~0.5s window, updated 2x/sec
+let fpsFrames = 0, fpsLast = performance.now();
+(function loop() {
+  requestAnimationFrame(loop);
+  controls.update();
+  renderer.render(scene, camera);
+  fpsFrames++;
+  const now = performance.now(), dt = now - fpsLast;
+  if (dt >= 500) {
+    fpsEl.textContent = (fpsFrames * 1000 / dt).toFixed(0) + " fps";
+    fpsFrames = 0; fpsLast = now;
+  }
+})();
+
+// --- ply parse (our own binary format: x,y,z f32 + r,g,b u8, 15 bytes) ----
+function parsePLY(buf) {
+  const bytes = new Uint8Array(buf);
+  // locate "end_header\n"
+  const marker = "end_header\n";
+  let headEnd = -1;
+  for (let i = 0; i < bytes.length - marker.length; i++) {
+    let ok = true;
+    for (let j = 0; j < marker.length; j++)
+      if (bytes[i + j] !== marker.charCodeAt(j)) { ok = false; break; }
+    if (ok) { headEnd = i + marker.length; break; }
+  }
+  if (headEnd < 0) throw new Error("no PLY header");
+  const header = new TextDecoder().decode(bytes.subarray(0, headEnd));
+  const m = header.match(/element vertex (\d+)/);
+  const n = m ? +m[1] : 0;
+
+  const dv = new DataView(buf, headEnd);
+  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const stride = 15;
+  for (let i = 0; i < n; i++) {
+    const o = i * stride;
+    pos[i*3]   = dv.getFloat32(o,     true);
+    pos[i*3+1] = dv.getFloat32(o + 4, true);
+    pos[i*3+2] = dv.getFloat32(o + 8, true);
+    col[i*3]   = dv.getUint8(o + 12) / 255;
+    col[i*3+1] = dv.getUint8(o + 13) / 255;
+    col[i*3+2] = dv.getUint8(o + 14) / 255;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+function setCloud(geo) {
+  if (cloud) { world.remove(cloud); cloud.geometry.dispose(); cloud.material.dispose(); }
+  const mat = new THREE.PointsMaterial({ size: +psize.value, vertexColors: true, sizeAttenuation: false });
+  cloud = new THREE.Points(geo, mat);
+  world.add(cloud);
+  const bs = geo.boundingSphere;
+  sceneCenter.copy(bs.center);
+  sceneRadius = bs.radius || 1;
+  frameScene();
+  rebuildFrustums();
+}
+
+function frameScene() {
+  world.updateMatrixWorld(true);
+  const c = sceneCenter.clone().applyMatrix4(world.matrixWorld);   // center in world space (post-flip)
+  controls.target.copy(c);
+  const d = sceneRadius * 2.4;
+  camera.position.copy(c).add(new THREE.Vector3(0.6, 0.4, 1).normalize().multiplyScalar(d));
+  camera.near = sceneRadius * 0.002;
+  camera.far  = sceneRadius * 50;
+  camera.updateProjectionMatrix();
+}
+
+// --- camera frustums from poses.json -------------------------------------
+function rebuildFrustums() {
+  frustums.clear();
+  if (!poses) return;
+  const d = sceneRadius * +fsize.value;     // frustum depth, relative to scene
+  poses.forEach((f, idx) => {
+    const E = f.extrinsics_c2w, K = f.intrinsics;
+    if (!E || !K) return;
+    // row-major 4x4 -> Matrix4.set is row-major
+    const m = new THREE.Matrix4().set(
+      E[0],E[1],E[2],E[3], E[4],E[5],E[6],E[7], E[8],E[9],E[10],E[11], E[12],E[13],E[14],E[15]);
+    const fx = K[0], fy = K[4], cx = K[2], cy = K[5];
+    const W = 2 * cx, H = 2 * cy;            // image extent from principal point
+    const center = new THREE.Vector3().setFromMatrixPosition(m);
+    const corner = (u, v) =>
+      new THREE.Vector3((u - cx) / fx * d, (v - cy) / fy * d, d).applyMatrix4(m);
+    const c0 = corner(0, 0), c1 = corner(W, 0), c2 = corner(W, H), c3 = corner(0, H);
+    const pts = [center,c0, center,c1, center,c2, center,c3,  c0,c1, c1,c2, c2,c3, c3,c0];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const hue = (idx / Math.max(1, poses.length)) * 0.7;   // spread hues across views
+    const mat = new THREE.LineBasicMaterial({ color: new THREE.Color().setHSL(hue, 0.7, 0.6) });
+    frustums.add(new THREE.LineSegments(geo, mat));
+  });
+  frustums.visible = fshow.checked;
+}
+
+// --- file intake ---------------------------------------------------------
+function handleFile(file) {
+  const r = new FileReader();
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".ply")) {
+    r.onload = () => { try { setCloud(parsePLY(r.result)); document.body.classList.add("loaded"); status();
+                             if (!poses) tryFetchPoses(); }
+                       catch (e) { st.textContent = "ply error: " + e.message; } };
+    r.readAsArrayBuffer(file);
+  } else if (name.endsWith(".json")) {
+    r.onload = () => { try { poses = JSON.parse(r.result).frames || []; rebuildFrustums(); status(); }
+                       catch (e) { st.textContent = "json error: " + e.message; } };
+    r.readAsText(file);
+  }
+}
+
+// only a .ply was given: best-effort grab a sibling poses.json sitting next to the
+// page (works when the viewer is served from / copied into the output dir).
+function tryFetchPoses() {
+  fetch("poses.json").then(r => r.ok ? r.text() : Promise.reject())
+    .then(t => { poses = JSON.parse(t).frames || []; rebuildFrustums(); status(); })
+    .catch(() => {});
+}
+
+function status() {
+  const np = cloud ? cloud.geometry.attributes.position.count : 0;
+  const nc = poses ? poses.length : 0;
+  st.textContent = `${np.toLocaleString()} points  ·  ${nc} cameras`;
+}
+
+// drag/drop
+const body = document.body, dropEl = document.getElementById("drop");
+addEventListener("dragover", e => { e.preventDefault(); body.classList.add("drag"); });
+addEventListener("dragleave", e => { if (e.target === dropEl) body.classList.remove("drag"); });
+addEventListener("drop", e => {
+  e.preventDefault(); body.classList.remove("drag");
+  const items = e.dataTransfer.items;
+  if (items && items.length && items[0].webkitGetAsEntry) {
+    for (const it of items) { const ent = it.webkitGetAsEntry(); if (ent) walkEntry(ent); }
+  } else {
+    for (const f of e.dataTransfer.files) handleFile(f);
+  }
+});
+// drop the output folder -> auto-pick scene.ply + poses.json out of it.
+function walkEntry(entry) {
+  if (entry.isFile) entry.file(handleFile);
+  else if (entry.isDirectory) entry.createReader().readEntries(es => es.forEach(walkEntry));
+}
+// file picker fallback
+const fileInput = document.getElementById("file");
+document.getElementById("pick").onclick = () => fileInput.click();
+fileInput.onchange = () => { for (const f of fileInput.files) handleFile(f); };
+
+// hud
+const rspeed = document.getElementById("rspeed");
+const psize = document.getElementById("psize"), fsize = document.getElementById("fsize");
+const fshow = document.getElementById("fshow");
+const st = document.getElementById("st");
+const fpsEl = document.getElementById("fps");
+rspeed.oninput = () => controls.rotateSpeed = +rspeed.value;
+psize.oninput = () => { if (cloud) cloud.material.size = +psize.value; };
+fsize.oninput = rebuildFrustums;
+fshow.onchange = () => frustums.visible = fshow.checked;
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+dvlt.cu
+Copyright (c) 2026 yassa9 (https://github.com/yassa9)
+
+This product includes software developed by yassa9: a bare-metal CUDA/C++ port
+of NVIDIA's DVLT (Déjà View Looping Transformer). It is licensed under the
+Apache License, Version 2.0 (see LICENSE).
+
+If you use, redistribute, or build upon this software, please retain this
+notice and credit:
+
+    dvlt.cu - https://github.com/yassa9/dvlt.cu
+
+------------------------------------------------------------------------------
+Original work
+------------------------------------------------------------------------------
+DVLT (Déjà View: Looping Transformers for Multi-View 3D Reconstruction)
+Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES.
+Licensed under the Apache License, Version 2.0.
+
+    Project: https://research.nvidia.com/labs/dvl/projects/dvlt/
+    Model:   https://huggingface.co/nvidia/dvlt
+    Paper:   https://arxiv.org/abs/2605.30215
+
+------------------------------------------------------------------------------
+Model weights (NOT included)
+------------------------------------------------------------------------------
+The DVLT model weights (the nvidia/dvlt checkpoint) are NOT distributed with
+this project. They are released separately by NVIDIA under the NVIDIA License
+(non-commercial; research and evaluation use only) and are fetched at setup
+time from https://huggingface.co/nvidia/dvlt. Your use of the weights is
+governed by the NVIDIA License, not by this project's Apache-2.0 license.
+
+------------------------------------------------------------------------------
+Third-party components
+------------------------------------------------------------------------------
+This software bundles or builds against CUTLASS (NVIDIA, BSD-3-Clause) and
+stb_image (Sean Barrett, MIT or Public Domain), and reimplements algorithms
+adapted via DVLT from DINOv2, PyTorch3D, MoGe, MultiNeRF, Depth-Anything-3, and
+AnyCalib. See THIRD_PARTY.md for full attribution and license texts.

@@ -1,0 +1,22 @@
+build/
+dev/
+ext/
+
+model/
+
+# ignore users' own input dumps, but ship the bundled sample
+inputs/*
+!inputs/shoe/
+
+*.png
+!assets/*.png
+
+*.bin
+*.dvlt
+*.ply
+*.o
+
+__pycache__/
+*.pyc
+
+output/
