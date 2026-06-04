@@ -9,6 +9,7 @@ If you wish to make an apple pie from scratch,
 you must first invent the universe.
 - Carl Sagan
 ```
+<video src="assets/demp.mp4" width="320" height="240" controls></video>
 
 `dvlt.cu` is a suckless, single binary, zero-dependency inference engine for NVIDIA's [DVLT](https://research.nvidia.com/labs/dvl/projects/dvlt/) (Déjà View Looping Transformer), written in pure CUDA/C++, no python, no torch, no framework. It reconstructs 3D from a handful of images (depth + rays + camera pose => point cloud) and runs on consumer GPUs. Under the hood: mmap'd bf16 weights, a single bulk GPU upload, a one shot bump arena, and fused kernels on cuBLASLt + cuTLASS attention.
 
@@ -75,7 +76,7 @@ you can try on that tiny set comes with the repo ( downloaded from [agisoft](htt
 ```
 
 <p align="center">
-  <img src="assets/output_sample.png" width="368" height="852" alt="arch">
+  <img src="assets/output_sample.png" width="245" height="568" alt="arch">
   <br>
   <em>Terminal output report</em>
 </p>
