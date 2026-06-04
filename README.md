@@ -1,7 +1,7 @@
 # dvlt.cu
 
 <p align="center">
-  <img src="assets/banner.png" width="336" height="90" alt="banner_">
+  <img src="assets/banner.png" width="672" height="180" alt="banner_">
 </p>
 
 ```text
@@ -9,7 +9,9 @@ If you wish to make an apple pie from scratch,
 you must first invent the universe.
 - Carl Sagan
 ```
-<video src="assets/demp.mp4" width="320" height="240" controls></video>
+
+https://github.com/user-attachments/assets/9382ed6d-7143-4559-97c6-e2188ed56318
+
 
 `dvlt.cu` is a suckless, single binary, zero-dependency inference engine for NVIDIA's [DVLT](https://research.nvidia.com/labs/dvl/projects/dvlt/) (Déjà View Looping Transformer), written in pure CUDA/C++, no python, no torch, no framework. It reconstructs 3D from a handful of images (depth + rays + camera pose => point cloud) and runs on consumer GPUs. Under the hood: mmap'd bf16 weights, a single bulk GPU upload, a one shot bump arena, and fused kernels on cuBLASLt + cuTLASS attention.
 
