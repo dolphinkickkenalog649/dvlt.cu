@@ -74,6 +74,12 @@ you can try on that tiny set comes with the repo ( downloaded from [agisoft](htt
 ./build/dvlt -i inputs/shoe
 ```
 
+<p align="center">
+  <img src="assets/output_sample.png" width="368" height="852" alt="arch">
+  <br>
+  <em>Terminal output report</em>
+</p>
+
 > [!IMPORTANT]
 > The dvlt.cu **code** is mine and Apache-2.0. The **model weights** are NOT mine and are NOT included in this repo. They are released by NVIDIA under the NVIDIA License (non-commercial; research and evaluation use only) and are fetched from NVIDIA directly at setup time. See `NOTICE` and `THIRD_PARTY.md`.
 
